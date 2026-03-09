@@ -1,0 +1,25 @@
+{
+  "skills": {
+    "simplify": {
+      "description": "Review changed code for reuse, quality, and efficiency, then fix any issues found.",
+      "trigger": "manual",
+      "context": "skills/simplify.md"
+    },
+    "claude-api": {
+      "description": "Build apps with the Claude API, Anthropic SDK, or Agent SDK.",
+      "trigger": "auto",
+      "triggerPatterns": [
+        "import anthropic",
+        "from anthropic",
+        "@anthropic-ai/sdk",
+        "claude_agent_sdk"
+      ],
+      "context": "skills/claude-api.md"
+    },
+    "session-start-hook": {
+      "description": "Create and configure startup hooks for Claude Code on the web.",
+      "trigger": "manual",
+      "context": "skills/session-start-hook.md"
+    }
+  }
+}
