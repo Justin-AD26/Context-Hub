@@ -37,8 +37,25 @@ fi
 TODAY="$(TZ=America/Los_Angeles date '+%a, %b %-d')"
 COUNT="$(jq '.todos | length' "$TODOS_FILE")"
 
-# Build each task as a separate line with real newlines
-TASKS=""
+# Build blocks array: each task is its own section block for max width
+BLOCKS='[]'
+
+# Header
+BLOCKS="$(echo "$BLOCKS" | jq \
+  --arg today "$TODAY" \
+  '. + [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: ":memo:  Justin\u0027s To-Do Summary  \u2014  \($today)",
+        emoji: true
+      }
+    },
+    { type: "divider" }
+  ]')"
+
+# Each task as its own section block
 for i in $(seq 0 $((COUNT - 1))); do
   TASK="$(jq -r ".todos[$i].task" "$TODOS_FILE")"
   NUM_LINKS="$(jq ".todos[$i].links | length" "$TODOS_FILE")"
@@ -55,38 +72,20 @@ for i in $(seq 0 $((COUNT - 1))); do
   done
 
   IDX=$((i + 1))
-  TASKS+="*${IDX}.* ${TASK}  ($LINK_PARTS)"
-  # Add blank line between tasks (but not after the last one)
-  if [[ $i -lt $((COUNT - 1)) ]]; then
-    TASKS+=$'\n\n'
-  fi
+  TASK_TEXT="*${IDX}. ${TASK}*"$'\n'"      ($LINK_PARTS)"
+
+  BLOCKS="$(echo "$BLOCKS" | jq \
+    --arg text "$TASK_TEXT" \
+    '. + [{
+      type: "section",
+      text: { type: "mrkdwn", text: $text }
+    }]')"
 done
 
-# Build payload using jq so newlines are properly JSON-escaped
-PAYLOAD="$(jq -n \
-  --arg today "$TODAY" \
-  --arg tasks "$TASKS" \
-  '{
-    blocks: [
-      {
-        type: "header",
-        text: {
-          type: "plain_text",
-          text: ("Justin'"'"'s To-Do Summary  —  " + $today),
-          emoji: true
-        }
-      },
-      { type: "divider" },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: $tasks
-        }
-      },
-      { type: "divider" }
-    ]
-  }')"
+# Closing divider
+BLOCKS="$(echo "$BLOCKS" | jq '. + [{ type: "divider" }]')"
+
+PAYLOAD="$(echo "$BLOCKS" | jq '{ blocks: . }')"
 
 HTTP_CODE="$(curl -s -o /dev/null -w '%{http_code}' \
   -X POST -H 'Content-type: application/json' \
