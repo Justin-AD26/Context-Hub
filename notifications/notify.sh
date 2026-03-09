@@ -37,14 +37,12 @@ fi
 TODAY="$(TZ=America/Los_Angeles date '+%a, %b %-d')"
 COUNT="$(jq '.todos | length' "$TODOS_FILE")"
 
-# Build the message
-MESSAGE=":memo: *Justin's To-Do Summary — $TODAY*\n\n"
-
+# Build each task as a separate line with real newlines
+TASKS=""
 for i in $(seq 0 $((COUNT - 1))); do
   TASK="$(jq -r ".todos[$i].task" "$TODOS_FILE")"
   NUM_LINKS="$(jq ".todos[$i].links | length" "$TODOS_FILE")"
 
-  # Build link text: (Link 1, Link 2, ...)
   LINK_PARTS=""
   for j in $(seq 0 $((NUM_LINKS - 1))); do
     URL="$(jq -r ".todos[$i].links[$j]" "$TODOS_FILE")"
@@ -57,11 +55,38 @@ for i in $(seq 0 $((COUNT - 1))); do
   done
 
   IDX=$((i + 1))
-  MESSAGE+="$IDX) $TASK ($LINK_PARTS)\n"
+  TASKS+="*${IDX}.* ${TASK}  ($LINK_PARTS)"
+  # Add blank line between tasks (but not after the last one)
+  if [[ $i -lt $((COUNT - 1)) ]]; then
+    TASKS+=$'\n\n'
+  fi
 done
 
-# Post to Slack
-PAYLOAD="$(jq -n --arg text "$MESSAGE" '{text: $text, unfurl_links: false}')"
+# Build payload using jq so newlines are properly JSON-escaped
+PAYLOAD="$(jq -n \
+  --arg today "$TODAY" \
+  --arg tasks "$TASKS" \
+  '{
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: ("Justin'"'"'s To-Do Summary  —  " + $today),
+          emoji: true
+        }
+      },
+      { type: "divider" },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: $tasks
+        }
+      },
+      { type: "divider" }
+    ]
+  }')"
 
 HTTP_CODE="$(curl -s -o /dev/null -w '%{http_code}' \
   -X POST -H 'Content-type: application/json' \
